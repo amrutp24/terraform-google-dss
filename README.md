@@ -50,16 +50,16 @@ The `dataiku` provider needs an API key, and a brand-new DSS has no way to
 produce one without a browser. With `create_api_key` left on, the bootstrap runs
 `dsscli api-key-create` and writes the result to `api_key_path`, mode 0600.
 
-Moving it off the instance is the part this module deliberately does not decide
-for you:
+Moving it off the instance is the part this module deliberately leaves to you.
 
-- **Secret Manager** is cleanest. Give the instance's service account
-  `secretmanager.secretAccessor`, push the key there from the startup script,
-  and read it back with `google_secret_manager_secret_version`. Nothing
-  sensitive passes through Terraform state.
-- **Over SSH or IAP**, with an `external` data source.
-- **By hand, once.** Set `create_api_key = false` and create a global API key
-  under Administration → Security after DSS is up.
+Secret Manager is the cleanest of these: give the instance's service account
+`secretmanager.secretAccessor`, push the key from the startup script, and read it
+back with `google_secret_manager_secret_version`, so nothing sensitive passes
+through Terraform state. Fetching the file over SSH or IAP with an `external`
+data source works too.
+
+Or skip it entirely. Set `create_api_key = false` and create a global API key
+under Administration → Security once DSS is up.
 
 ## Networking
 
@@ -71,29 +71,27 @@ Setting `assign_public_ip = false` leaves the instance without an external
 address, which is the right answer for anything lasting — reach it over IAP or a
 VPN, and give it Cloud NAT so the installer can still fetch its two gigabytes.
 
-## What this module does not do
+## Limits
 
-Worth knowing before you rely on it.
+The data directory sits on the boot disk, which keeps the module small and means
+replacing the instance loses every project. Attach a persistent disk and mount it
+at `data_dir` if you want it to survive a rebuild.
 
-**The data directory is on the boot disk.** That keeps the module small, and
-means replacing the instance loses every project. For anything you care about,
-attach a persistent disk, mount it at `data_dir`, and it survives a rebuild.
-
-**There is no load balancer, TLS, or DNS.** DSS is reached directly on its port
-over plain HTTP. Put it behind a load balancer with a managed certificate before
+There is no load balancer, TLS or DNS. DSS answers directly on its port over
+plain HTTP, so put it behind a load balancer with a managed certificate before
 anyone types a password into it.
 
-**The default service account is broader than it should be.** Leaving
-`service_account_email` null uses the project's default compute account with
-`cloud-platform` scope. Give it a dedicated account with only what it needs.
+Leaving `service_account_email` null falls back to the project's default compute
+account with `cloud-platform` scope, which is far broader than this needs. Give
+it a dedicated account.
 
-**One instance, no automatic recovery.** No managed instance group, no health
-check replacing a broken node. DSS is stateful and does not cluster like this,
-so recovery means restoring the data directory.
+Nothing replaces a broken node either: no managed instance group, no health
+check. DSS is stateful and does not cluster this way, so recovery means
+restoring the data directory from a backup you took yourself.
 
-**Sizing costs money.** DSS drops into a low-memory mode below roughly 16 GB and
-says so in its logs, so the default is `n2-standard-4`. That runs up a bill while
-it exists. `terraform destroy` when you are finished.
+It also costs money. DSS drops into a low-memory mode below roughly 16 GB and
+says so in its logs, which is why the default is `n2-standard-4` — that bills for
+as long as it exists. Destroy it when you are done.
 
 ## Licensing DSS
 
