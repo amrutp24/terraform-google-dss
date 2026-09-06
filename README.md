@@ -97,6 +97,9 @@ The `dataiku` provider needs an API key, and a brand-new DSS has no way to
 produce one without a browser. With `create_api_key` left on, the bootstrap runs
 `dsscli api-key-create` and writes the result to `api_key_path`, mode 0600.
 
+It writes an array of one object, not a bare object, so anything reading it
+has to index in: `[{"id": ..., "key": ..., "label": "terraform"}]`.
+
 Moving it off the instance is the part this module deliberately leaves to you.
 Secret Manager is the cleanest option: give the instance's service account
 `secretmanager.secretAccessor`, push the key from the startup script, and read it
