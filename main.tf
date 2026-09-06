@@ -24,7 +24,7 @@ data "google_compute_image" "ubuntu" {
 }
 
 module "bootstrap" {
-  source = "./modules/bootstrap"
+  source = "github.com/amrutp24/terraform-null-dss-bootstrap?ref=v0.1.0"
 
   dss_version  = var.dss_version
   dss_port     = var.dss_port
