@@ -31,6 +31,13 @@ module "bootstrap" {
   dss_port     = var.dss_port
   data_dir     = var.data_dir
   license_json = var.license_json
+
+  containerized_execution = var.containerized_execution
+  kubectl_version         = var.kubectl_version
+  gcloud_registry_host    = var.gcloud_registry_host
+  gke_cluster_name        = var.gke_cluster_name
+  gke_cluster_zone        = var.gke_cluster_zone
+  build_base_image        = var.build_base_image
 }
 
 # The firewall rule applies to instances carrying this tag rather than to the

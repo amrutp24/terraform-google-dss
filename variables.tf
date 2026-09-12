@@ -115,3 +115,59 @@ variable "labels" {
   type        = map(string)
   default     = {}
 }
+
+# ---------------------------------------------------------------------------
+# Containerized execution ("Elastic AI")
+#
+# Passed straight through to the bootstrap module, which does the work. They
+# live here because that module is called from inside this one, so without a
+# passthrough there is no way for a caller to reach them.
+#
+# All default to off, so an existing configuration is unaffected.
+# ---------------------------------------------------------------------------
+
+variable "containerized_execution" {
+  description = <<-EOT
+    Install a Docker daemon and kubectl on the instance and put the DSS service
+    user in the docker group, so DSS can build and run container images. On its
+    own this prepares the host; it configures nothing inside DSS, which is the
+    dataiku provider's job.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "kubectl_version" {
+  description = "Pin kubectl, for example v1.31.0. Empty resolves the current stable release. kubectl tolerates one minor version of skew from the control plane, so pin this against your cluster."
+  type        = string
+  default     = ""
+}
+
+variable "gcloud_registry_host" {
+  description = "Artifact Registry host to configure Docker credentials for, for example us-central1-docker.pkg.dev. Installs the gcloud CLI if the image does not carry it."
+  type        = string
+  default     = ""
+}
+
+variable "gke_cluster_name" {
+  description = "GKE cluster to fetch credentials for at boot. Must be set together with gke_cluster_zone."
+  type        = string
+  default     = ""
+}
+
+variable "gke_cluster_zone" {
+  description = "Zone or region of the GKE cluster. Must be set together with gke_cluster_name."
+  type        = string
+  default     = ""
+}
+
+variable "build_base_image" {
+  description = <<-EOT
+    Build the DSS container-exec base image at the end of the install. Slow: it
+    pulls a base OS image, layers the DSS code environment on top and pushes the
+    result. Requires containerized_execution, since the build needs the Docker
+    socket. Dataiku requires this image to be rebuilt after every DSS upgrade.
+  EOT
+  type        = bool
+  default     = false
+}
