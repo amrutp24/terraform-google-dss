@@ -80,7 +80,20 @@ variable "disk_size_gb" {
 }
 
 variable "service_account_email" {
-  description = "Service account for the instance. Null uses the project's default compute account, which is broader than it should be for anything lasting."
+  description = <<-EOT
+    Service account for the instance. Null uses the project's default compute
+    account, which is broader than it should be for anything lasting.
+
+    One exception: with license_secret_id set and this left null, the module
+    creates a dedicated account named after `name` and runs the instance as
+    that, so the licence grant lands on an identity only this instance uses
+    rather than on the account every other instance in the project shares.
+
+    That account starts with no roles beyond reading the licence, which
+    matters if you were leaning on the default compute account's
+    project-level access for something else: Artifact Registry or GKE for
+    containerized execution, say. Pass an account of your own if so.
+  EOT
   type        = string
   default     = null
 }
@@ -114,6 +127,74 @@ variable "labels" {
   description = "Labels applied to the instance."
   type        = map(string)
   default     = {}
+}
+
+variable "license_secret_id" {
+  description = <<-EOT
+    Id of a Secret Manager secret holding a DSS licence, in project_id, which
+    the instance reads for itself at boot. The id only, not a full
+    projects/.../secrets/... resource name, and the secret has to live in the
+    same project as the instance.
+
+    Prefer this over license_json. license_json is rendered into the startup
+    script, so it reaches Terraform state and instance metadata, and anybody
+    who can read instance metadata can read it back. This puts only the
+    secret id in both places, and grants the instance
+    roles/secretmanager.secretAccessor on that one secret.
+
+    The version read is `latest`, so rotating the secret licenses the next
+    instance without a Terraform change.
+
+    Setting this gives the instance an identity: with service_account_email
+    left null the module creates a dedicated service account, because a
+    secret cannot be granted to the project default without granting it to
+    everything else running as the project default too.
+
+    The fetch needs egress to secretmanager.googleapis.com. With
+    assign_public_ip false that means Cloud NAT or Private Google Access,
+    which the installer's two-gigabyte download needs anyway.
+  EOT
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.license_secret_id == null || can(regex("^[A-Za-z0-9_-]+$", var.license_secret_id))
+    error_message = "license_secret_id must be a secret id: letters, digits, underscore and dash only. It is interpolated into a URL in a command that runs on the instance."
+  }
+}
+
+variable "enable_iap_ssh" {
+  description = <<-EOT
+    Open SSH to IAP TCP forwarding and turn on OS Login, which together give
+    you a shell on the instance without a key pair, without a public address
+    and without admitting your own address to anything:
+
+      gcloud compute ssh <name> --zone <zone> --tunnel-through-iap
+
+    Off by default, because it is a firewall rule and a change to how logins
+    are authorised, and somebody should choose both.
+
+    This is also the only way to read the API key the bootstrap writes when
+    create_api_key is on. The file is root-owned and mode 0600, so reading it
+    takes sudo, which under OS Login means roles/compute.osAdminLogin rather
+    than roles/compute.osLogin. Without either this or ssh_cidr_blocks that
+    file exists on the host and nothing can reach it, which makes the second
+    half of the workflow, pointing the dataiku provider at the instance,
+    impossible.
+
+    Two roles have to be granted to whoever connects, and this module does
+    not grant them, because it does not know who that is:
+    roles/iap.tunnelResourceAccessor to reach the tunnel, and
+    roles/compute.osAdminLogin to land on the host with sudo.
+
+    Chosen over `gcloud compute ssh` on a public address, which is the other
+    way to get a shell here: that needs port 22 open to wherever you are
+    sitting, which is ssh_cidr_blocks and already exists. IAP needs nothing
+    installed on the host, nothing outside the network, and no address of
+    yours in a firewall rule.
+  EOT
+  type        = bool
+  default     = false
 }
 
 # ---------------------------------------------------------------------------
