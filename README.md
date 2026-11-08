@@ -21,7 +21,7 @@ provider "google" {
 
 module "dss" {
   source  = "amrutp24/dss/google"
-  version = "~> 0.1"
+  version = "~> 0.3"
 
   project_id          = "my-project"
   allowed_cidr_blocks = ["203.0.113.0/24"] # replace: your office or VPN range
@@ -56,8 +56,13 @@ Or on the instance itself:
 
 ```bash
 gcloud compute ssh "$(terraform output -raw instance_name)" \
+  --tunnel-through-iap \
   --command 'sudo journalctl -u google-startup-scripts.service -f'
 ```
+
+`--tunnel-through-iap` is needed whenever the instance has no public address,
+which is the case whenever you reach it with `enable_iap_ssh` rather than a
+public IP. It is harmless when there is one.
 
 Every line the bootstrap writes is prefixed `[dss-bootstrap]`, and the last one
 is `done`. If it never gets there, that log names the step that failed. DSS
