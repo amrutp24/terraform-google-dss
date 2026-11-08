@@ -112,7 +112,8 @@ locals {
 }
 
 resource "google_compute_firewall" "iap_ssh" {
-  count = var.enable_iap_ssh ? 1 : 0
+  project = var.project_id
+  count   = var.enable_iap_ssh ? 1 : 0
 
   name    = "${var.name}-iap-ssh"
   network = var.network
@@ -162,6 +163,7 @@ resource "google_secret_manager_secret_iam_member" "license" {
 }
 
 resource "google_compute_firewall" "dss" {
+  project = var.project_id
   name    = "${var.name}-dss"
   network = var.network
 
@@ -179,7 +181,8 @@ resource "google_compute_firewall" "dss" {
 }
 
 resource "google_compute_firewall" "ssh" {
-  count = var.ssh_cidr_blocks == null ? 0 : 1
+  project = var.project_id
+  count   = var.ssh_cidr_blocks == null ? 0 : 1
 
   name    = "${var.name}-ssh"
   network = var.network
@@ -193,7 +196,20 @@ resource "google_compute_firewall" "ssh" {
   target_tags   = [local.network_tag]
 }
 
+# project is set on every resource here rather than inherited from the
+# provider. project_id is required, and when it disagreed with the provider
+# this module used to split resources across two projects without complaining:
+# the service account and the secret grant followed project_id, the instance
+# and the firewall rules went wherever the provider pointed.
 resource "google_compute_instance" "dss" {
+  project = var.project_id
+
+  # The boot script reads the licence from Secret Manager, so the grant has to
+  # exist before the instance starts. Without this they are created in
+  # parallel, and it only works because the installer downloads about two
+  # gigabytes before reaching the fetch, which is luck rather than ordering.
+  # The list is empty when no secret was named, so this costs nothing then.
+  depends_on   = [google_secret_manager_secret_iam_member.license]
   name         = var.name
   machine_type = var.machine_type
   zone         = var.zone
