@@ -13,3 +13,8 @@ override.tf.json
 .terraformrc
 terraform.rc
 .DS_Store
+
+# Written by scripts/ and holding secrets.
+.apikey
+.license.tmp
+.fetch-key.err
