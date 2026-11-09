@@ -21,7 +21,7 @@ provider "google" {
 
 module "dss" {
   source  = "amrutp24/dss/google"
-  version = "~> 0.1"
+  version = "~> 0.3"
 
   project_id          = "my-project"
   allowed_cidr_blocks = ["203.0.113.0/24"] # replace: your office or VPN range
@@ -56,8 +56,13 @@ Or on the instance itself:
 
 ```bash
 gcloud compute ssh "$(terraform output -raw instance_name)" \
+  --tunnel-through-iap \
   --command 'sudo journalctl -u google-startup-scripts.service -f'
 ```
+
+`--tunnel-through-iap` is needed whenever the instance has no public address,
+which is the case whenever you reach it with `enable_iap_ssh` rather than a
+public IP. It is harmless when there is one.
 
 Every line the bootstrap writes is prefixed `[dss-bootstrap]`, and the last one
 is `done`. If it never gets there, that log names the step that failed. DSS
@@ -108,7 +113,12 @@ through Terraform state. Fetching the file over SSH or IAP with an `external`
 data source works too.
 
 Or skip it. Set `create_api_key = false` and create a global API key under
-Administration → Security once DSS is up.
+Administration -> Security once DSS is up.
+
+With `enable_iap_ssh = true` there is also `scripts/fetch-key.sh`, which reads
+the file over IAP, waits for it to exist, and checks that the key
+authenticates. It is a convenience, not a substitute for the above: the key
+still lands on your machine rather than in a secret store.
 
 ## Outputs
 
@@ -157,9 +167,21 @@ It also costs money. DSS drops into a low-memory mode below roughly 16 GB and
 says so in its logs, so the default is `n2-standard-4`, which bills for as long
 as it exists. Destroy it when you are done.
 
-## Licensing DSS
+## Licensing
 
-The `dataiku` provider talks to the DSS public REST API.
+A fresh instance asks whoever opens it first to register Free Edition. Until
+somebody does, it licenses only the `NONE` user profile, which is not enough
+for the `dataiku` provider to create a usable user.
+
+`license_secret_id` makes that a one-time job: register once, keep the
+licence in Secret Manager, and every instance after that reads it at boot.
+`license_json` works too and is simpler, but it ends up in Terraform state
+and instance metadata. [docs/licensing.md](docs/licensing.md) has both, the
+`scripts/save-license.sh` that fills the secret, and the third option of
+letting the instance register itself.
+
+None of them removes the DSS login page. DSS always asks for credentials,
+`admin` / `admin` on a fresh install.
 
 Whether a given instance serves it depends on the version and the licence, so
 check rather than assume. A stock DSS 15 Community Edition installed by this
@@ -176,12 +198,6 @@ curl -su "$DATAIKU_API_KEY:" "$(terraform output -raw dss_url)/public/api/admin/
 
 `200` means the provider will work. `401` is a bad key. A licence error names
 itself in the body, and then you need a licence with API access.
-
-Pass a licence at install time with `license_json` if you have one, or register
-the instance through its web interface on first visit.
-
-`license_json` reaches instance metadata and Terraform state, so supply it from a
-secret store rather than a file in your repository.
 
 ## Security defaults
 
