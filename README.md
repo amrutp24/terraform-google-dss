@@ -183,14 +183,11 @@ letting the instance register itself.
 None of them removes the DSS login page. DSS always asks for credentials,
 `admin` / `admin` on a fresh install.
 
-Whether a given instance serves it depends on the version and the licence, so
-check rather than assume. A stock DSS 15 Community Edition installed by this
-module answered the API with `license_json` unset, and projects, groups, users,
-connections and scenarios were all created through it. An older `dataiku/dss` container, by
-contrast, refused with `DSS API is not available with your Free Edition
-license`.
+### Does the API answer at all
 
-The check that matters is whether the API answers at all:
+Separate question, and worth checking rather than assuming. A stock DSS 15
+installed by this module answers with no licence at all, and projects, groups,
+users, connections and scenarios can all be created through it.
 
 ```bash
 curl -su "$DATAIKU_API_KEY:" "$(terraform output -raw dss_url)/public/api/admin/general-settings/" -o /dev/null -w '%{http_code}'; echo
